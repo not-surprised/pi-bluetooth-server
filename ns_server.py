@@ -183,7 +183,7 @@ class VolumeCharacteristic(Characteristic):
 
 
 class PauseVolumeUpdateCharacteristic(Characteristic):
-    CHARACTERISTIC_UUID = '10000000-b1b6-417b-af10-da8b3de984be'
+    CHARACTERISTIC_UUID = '10000001-b1b6-417b-af10-da8b3de984be'
 
     def __init__(self, service):
         Characteristic.__init__(
