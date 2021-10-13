@@ -33,17 +33,14 @@ from time import time
 GATT_CHRC_IFACE = 'org.bluez.GattCharacteristic1'
 NOTIFY_TIMEOUT = 5000
 
-def encode(string):
-    byte_array = []
-    for c in string:
-        byte_array.append(dbus.Byte(c.encode()))
+def encode(string: str) -> 'list[dbus.Byte]':
+    encoded = string.encode('utf-8')
+    byte_array = [dbus.Byte(b) for b in encoded]
     return byte_array
 
-def decode(byte_array):
-    string = []
-    for c in byte_array:
-        string.append(str(c))
-    return ''.join(string)
+def decode(byte_array: 'list[dbus.Byte]') -> str:
+    encoded = bytearray([int(b) for b in byte_array])
+    return encoded.decode('utf-8')
 
 
 class TextDescriptor(Descriptor):
@@ -51,26 +48,21 @@ class TextDescriptor(Descriptor):
 
     def __init__(self, characteristic, description):
         self.description = description
-        Descriptor.__init__(
-                self, self.DESCRIPTOR_UUID,
+        super().__init__(
+                self.DESCRIPTOR_UUID,
                 ['read'],
                 characteristic)
 
     def ReadValue(self, options):
-        value = []
-        desc = self.description
-
-        for c in desc:
-            value.append(dbus.Byte(c.encode()))
-
-        return value
+        return encode(self.description)
 
 
 class NsAdvertisement(Advertisement):
     def __init__(self, index):
-        Advertisement.__init__(self, index, 'peripheral')
+        super().__init__(index, 'peripheral')
         self.add_local_name('ns_server')
         self.include_tx_power = True
+
 
 class NsService(Service):
     SVC_UUID = '00000000-b1b6-417b-af10-da8b3de984be'
@@ -78,37 +70,44 @@ class NsService(Service):
     def __init__(self, index):
         self.volume_update_paused_until = False
 
-        Service.__init__(self, index, self.SVC_UUID, True)
+        super().__init__(index, self.SVC_UUID, True)
         self.add_characteristic(BrightnessCharacteristic(self))
         self.add_characteristic(VolumeCharacteristic(self))
         self.add_characteristic(PauseVolumeUpdateCharacteristic(self))
     
-    def pause_volume_update(self):
+    def pause_volume_update(self) -> None:
         self.volume_update_paused_until = time() + 5
     
-    def resume_volume_update(self):
+    def resume_volume_update(self) -> None:
         self.volume_update_paused_until = 0
     
-    def is_volume_update_paused(self):
+    def is_volume_update_paused(self) -> bool:
         return time() < self.volume_update_paused_until
 
-class BrightnessCharacteristic(Characteristic):
+
+class NsCharacteristic(Characteristic):
+    service: NsService
+    def __init__(self, uuid, flags, service: NsService):
+        super().__init__(uuid, flags, service)
+
+
+class BrightnessCharacteristic(NsCharacteristic):
     CHARACTERISTIC_UUID = '00000001-b1b6-417b-af10-da8b3de984be'
 
     def __init__(self, service):
         self.notifying = False
 
-        Characteristic.__init__(
-                self, self.CHARACTERISTIC_UUID,
+        super().__init__(
+                self.CHARACTERISTIC_UUID,
                 ['notify', 'read'], service)
         self.add_descriptor(TextDescriptor(self, 'Brightness (unit?)'))
 
-    def get(self):
+    def get(self) -> str:
         # get brightness
         strtemp = str(datetime.now())
         return encode(strtemp)
 
-    def notify(self):
+    def notify(self) -> bool:
         if self.notifying:
             value = self.get()
             self.PropertiesChanged(GATT_CHRC_IFACE, {'Value': value}, [])
@@ -133,30 +132,31 @@ class BrightnessCharacteristic(Characteristic):
 
         return value
 
-class VolumeCharacteristic(Characteristic):
+
+class VolumeCharacteristic(NsCharacteristic):
     CHARACTERISTIC_UUID = '00000002-b1b6-417b-af10-da8b3de984be'
 
     def __init__(self, service):
         self.notifying = False
         self.volume_value = self.get_raw()
 
-        Characteristic.__init__(
-                self, self.CHARACTERISTIC_UUID,
+        super().__init__(
+                self.CHARACTERISTIC_UUID,
                 ['notify', 'read'], service)
         self.add_descriptor(TextDescriptor(self, 'Volume (unit?)'))
 
-    def get_raw(self):
+    def get_raw(self) -> str:
         # get volume
         strtemp = str(datetime.now())
         return encode(strtemp)
 
-    def get(self):
+    def get(self) -> str:
         if self.service.is_volume_update_paused():
             return self.volume_value
         else:
             return self.get_raw()
 
-    def notify(self):
+    def notify(self) -> bool:
         if self.notifying:
             value = self.get()
             self.PropertiesChanged(GATT_CHRC_IFACE, {'Value': value}, [])
@@ -182,12 +182,12 @@ class VolumeCharacteristic(Characteristic):
         return value
 
 
-class PauseVolumeUpdateCharacteristic(Characteristic):
+class PauseVolumeUpdateCharacteristic(NsCharacteristic):
     CHARACTERISTIC_UUID = '10000001-b1b6-417b-af10-da8b3de984be'
 
     def __init__(self, service):
-        Characteristic.__init__(
-                self, self.CHARACTERISTIC_UUID,
+        super().__init__(
+                self.CHARACTERISTIC_UUID,
                 ['read', 'write'], service)
         self.add_descriptor(TextDescriptor(self,
             'Write 1 to freeze volume output and write 0 to unfreeze. '
@@ -195,6 +195,7 @@ class PauseVolumeUpdateCharacteristic(Characteristic):
 
     def WriteValue(self, value, options):
         value = decode(value)
+        print(value)
         if value == '1':
             self.service.pause_volume_update()
         elif value == '0':
@@ -202,6 +203,7 @@ class PauseVolumeUpdateCharacteristic(Characteristic):
 
     def ReadValue(self, options):
         return encode('1' if self.service.is_volume_update_paused() else '0')
+
 
 app = Application()
 app.add_service(NsService(0))
