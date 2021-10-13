@@ -194,12 +194,15 @@ class PauseVolumeUpdateCharacteristic(NsCharacteristic):
             'Will automatically reset after 5 seconds.'))
 
     def WriteValue(self, value, options):
-        value = decode(value)
-        print(value)
-        if value == '1':
-            self.service.pause_volume_update()
-        elif value == '0':
-            self.service.resume_volume_update()
+        try:
+            value = decode(value)
+            print(value)
+            if value == '1':
+                self.service.pause_volume_update()
+            elif value == '0':
+                self.service.resume_volume_update()
+        except Exception as e:
+            print(e)
 
     def ReadValue(self, options):
         return encode('1' if self.service.is_volume_update_paused() else '0')
