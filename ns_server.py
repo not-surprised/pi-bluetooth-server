@@ -1,26 +1,5 @@
 #!/usr/bin/python3
 
-'''Copyright (c) 2019, Douglas Otwell
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the 'Software'), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-'''
-
 import dbus
 
 from advertisement import Advertisement
@@ -29,9 +8,11 @@ from service import Application, Service, Characteristic, Descriptor
 from datetime import datetime
 from time import time
 
+from TSL2591 import TSL2591
+
 
 GATT_CHRC_IFACE = 'org.bluez.GattCharacteristic1'
-NOTIFY_TIMEOUT = 5000
+NOTIFY_TIMEOUT = 500
 
 def encode(string: str) -> 'list[dbus.Byte]':
     encoded = string.encode('utf-8')
@@ -96,16 +77,23 @@ class BrightnessCharacteristic(NsCharacteristic):
 
     def __init__(self, service):
         self.notifying = False
+        self.sensor = TSL2591()
 
         super().__init__(
                 self.CHARACTERISTIC_UUID,
                 ['notify', 'read'], service)
-        self.add_descriptor(TextDescriptor(self, 'Brightness (unit?)'))
+        self.add_descriptor(TextDescriptor(self, 'Brightness (lux)'))
 
     def get(self) -> str:
         # get brightness
-        strtemp = str(datetime.now())
-        return encode(strtemp)
+        try:
+            lux = self.sensor.Lux
+            print('sensor value', lux)
+            return encode(str(lux))
+        except Exception as e:
+            print('error reading sensor')
+            print(e)
+            return encode('error')
 
     def notify(self) -> bool:
         if self.notifying:
@@ -147,8 +135,7 @@ class VolumeCharacteristic(NsCharacteristic):
 
     def get_raw(self) -> str:
         # get volume
-        strtemp = str(datetime.now())
-        return encode(strtemp)
+        return encode(str(datetime.now()))
 
     def get(self) -> str:
         if self.service.is_volume_update_paused():
@@ -196,12 +183,13 @@ class PauseVolumeUpdateCharacteristic(NsCharacteristic):
     def WriteValue(self, value, options):
         try:
             value = decode(value)
-            print(value)
+            print('received', value)
             if value == '1':
                 self.service.pause_volume_update()
             elif value == '0':
                 self.service.resume_volume_update()
         except Exception as e:
+            print('error in WriteValue')
             print(e)
 
     def ReadValue(self, options):
