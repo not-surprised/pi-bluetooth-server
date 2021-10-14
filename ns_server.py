@@ -1,14 +1,14 @@
 #!/usr/bin/python3
 
+from datetime import datetime
+from time import time
+
 import dbus
 
 from advertisement import Advertisement
 from service import Application, Service, Characteristic, Descriptor
 
-from datetime import datetime
-from time import time
-
-from TSL2591 import TSL2591
+from brightness_sensor import BrightnessSensor
 
 
 GATT_CHRC_IFACE = 'org.bluez.GattCharacteristic1'
@@ -22,6 +22,10 @@ def encode(string: str) -> 'list[dbus.Byte]':
 def decode(byte_array: 'list[dbus.Byte]') -> str:
     encoded = bytearray([int(b) for b in byte_array])
     return encoded.decode('utf-8')
+
+
+brightness_sensor = BrightnessSensor()
+# brightness_sensor.enable_logging = True
 
 
 class TextDescriptor(Descriptor):
@@ -77,7 +81,6 @@ class BrightnessCharacteristic(NsCharacteristic):
 
     def __init__(self, service):
         self.notifying = False
-        self.sensor = TSL2591()
 
         super().__init__(
                 self.CHARACTERISTIC_UUID,
@@ -87,9 +90,9 @@ class BrightnessCharacteristic(NsCharacteristic):
     def get(self) -> str:
         # get brightness
         try:
-            lux = self.sensor.Lux
-            print('sensor value', lux)
-            return encode(str(lux))
+            value = brightness_sensor.get()
+            print('sensor value', value)
+            return encode(str(value))
         except Exception as e:
             print('error reading sensor')
             print(e)
@@ -207,3 +210,4 @@ try:
     app.run()
 except KeyboardInterrupt:
     app.quit()
+    brightness_sensor.stop_loop()
