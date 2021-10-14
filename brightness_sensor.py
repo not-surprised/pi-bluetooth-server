@@ -29,7 +29,7 @@ class BrightnessSensor:
                 try:
                     self.value = sensor.irradiance()
                     if self.enable_logging:
-                        print('brightness:', self.value)
+                        print(f'brightness:{self.value:.4f}')
                     await asyncio.gather(sensor.autorange(True), asyncio.sleep(0.2))
                 except Exception as e:
                     print('Exception in BrightnessSensor.loop:', e)

@@ -43,9 +43,13 @@ class TextDescriptor(Descriptor):
 
 
 class NsAdvertisement(Advertisement):
+    # we use this to identify that the device is indeed an ns_server
+    MANUFACTURER_UNIQUE_IDENTIFIER = '$tZuFTNvsLGt9U^gsCM!t8$@Fd6'
+
     def __init__(self, index):
         super().__init__(index, 'peripheral')
         self.add_local_name('ns_server')
+        self.add_manufacturer_data(0xffff, encode(self.MANUFACTURER_UNIQUE_IDENTIFIER))
         self.include_tx_power = True
 
 
@@ -91,8 +95,9 @@ class BrightnessCharacteristic(NsCharacteristic):
         # get brightness
         try:
             value = brightness_sensor.get()
-            print('sensor value', value)
-            return encode(str(value))
+            str_value = f'{value:.5g}' # 5 significant figures
+            print(f'read:{str_value}')
+            return encode(f'{str_value}')
         except Exception as e:
             print('error reading sensor')
             print(e)
