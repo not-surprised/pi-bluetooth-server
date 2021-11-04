@@ -2,7 +2,7 @@ import asyncio
 import threading
 
 import board
-from TSL2591X import TSL2591X
+from .TSL2591X import TSL2591X
 
 
 class BrightnessSensor:
@@ -11,14 +11,14 @@ class BrightnessSensor:
         self.enable_logging = False
         self.value = 0
         self.keep_running = True
-        self.thread = threading.Thread(target=self.start_loop)
+        self.thread = threading.Thread(target=self.start)
         self.thread.start()
 
-    def start_loop(self):
+    def start(self):
         self.keep_running = True
         asyncio.run(self.loop())
 
-    def stop_loop(self):
+    def stop(self):
         self.keep_running = False
 
     async def loop(self):

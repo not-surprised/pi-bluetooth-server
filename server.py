@@ -26,7 +26,9 @@ def decode(byte_array: 'list[dbus.Byte]') -> str:
 
 
 brightness_sensor = BrightnessSensor()
+volume_sensor = VolumeSensor()
 # brightness_sensor.enable_logging = True
+# volume_sensor.enable_logging = True
 
 
 class TextDescriptor(Descriptor):
@@ -97,10 +99,10 @@ class BrightnessCharacteristic(NsCharacteristic):
         try:
             value = brightness_sensor.get()
             str_value = f'{value:.5g}' # 5 significant figures
-            print(f'read:{str_value}')
+            print(f'read brightness: {str_value}')
             return encode(f'{str_value}')
         except Exception as e:
-            print('error reading sensor')
+            print('error reading brightness')
             print(e)
             return encode('error')
 
@@ -144,7 +146,15 @@ class VolumeCharacteristic(NsCharacteristic):
 
     def get_raw(self) -> str:
         # get volume
-        return encode(str(datetime.now()))
+        try:
+            value = volume_sensor.get()
+            str_value = f'{value:.5g}' # 5 significant figures
+            print(f'read volume: {str_value}')
+            return encode(f'{str_value}')
+        except Exception as e:
+            print('error reading volume')
+            print(e)
+            return encode('error')
 
     def get(self) -> str:
         if self.service.is_volume_update_paused():
@@ -212,8 +222,15 @@ app.register()
 adv = NsAdvertisement(0)
 adv.register()
 
+def stop():
+    app.quit()
+    brightness_sensor.stop()
+    volume_sensor.stop()
+
 try:
     app.run()
 except KeyboardInterrupt:
-    app.quit()
-    brightness_sensor.stop_loop()
+    stop()
+except:
+    stop()
+    raise

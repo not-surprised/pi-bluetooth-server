@@ -33,7 +33,6 @@ class VolumeSensor:
     def __init__(self):
         self.buffer = CircularBuffer(100)
         self.enable_logging = False
-        self.stream: sd.InputStream = None
         self.value: float = 0
         self.start()
     
@@ -47,6 +46,7 @@ class VolumeSensor:
     def stop(self):
         self.stream.stop()
         self.stream.close()
+        print('Turned off microphone stream')
 
     def callback(self, indata: np.ndarray, frames, time, status):
         sample = self.toDecibels(indata)
