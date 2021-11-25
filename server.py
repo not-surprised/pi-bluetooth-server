@@ -157,10 +157,9 @@ class VolumeCharacteristic(NsCharacteristic):
             return encode('error')
 
     def get(self) -> str:
-        if self.service.is_volume_update_paused():
-            return self.volume_value
-        else:
-            return self.get_raw()
+        if not self.service.is_volume_update_paused():
+            self.volume_value = self.get_raw()
+        return self.volume_value
 
     def notify(self) -> bool:
         if self.notifying:
