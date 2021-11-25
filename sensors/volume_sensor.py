@@ -50,9 +50,8 @@ class VolumeSensor:
 
     def callback(self, indata: np.ndarray, frames, time, status):
         sample = self.toDecibels(indata)
-        self.buffer *= 0.98
         self.buffer.push(sample)
-        self.value = self.time_average(self.buffer.populated_slice(), 0.9)
+        self.value = self.time_average(self.buffer.populated_slice(), 0.8)
         if self.enable_logging:
             self.print_sound(self.value)
 
