@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 from time import time
+import sys
 
 import dbus
 
@@ -30,7 +31,7 @@ brightness_sensor = BrightnessSensor()
 volume_sensor = VolumeSensor()
 # brightness_sensor.enable_logging = True
 # volume_sensor.enable_logging = True
-
+verbose = False
 
 class TextDescriptor(Descriptor):
     DESCRIPTOR_UUID = '2901'
@@ -108,7 +109,8 @@ class BrightnessCharacteristic(NsCharacteristic):
         try:
             value = brightness_sensor.get()
             str_value = f'{value:.5g}'  # 5 significant figures
-            print(f'read brightness: {str_value}')
+            if verbose:
+                print(f'read brightness: {str_value}')
             return encode(f'{str_value}')
         except Exception as e:
             print('error reading brightness')
@@ -165,7 +167,8 @@ class VolumeCharacteristic(NsCharacteristic):
         try:
             value = volume_sensor.get()
             str_value = f'{value:.5g}'  # 5 significant figures
-            print(f'read volume: {str_value}')
+            if verbose:
+                print(f'read volume: {str_value}')
             return encode(f'{str_value}')
         except Exception as e:
             print('error reading volume')
@@ -234,22 +237,26 @@ class PauseVolumeUpdateCharacteristic(NsCharacteristic):
         return encode('1' if self.service.is_volume_update_paused() else '0')
 
 
-app = Application()
-app.add_service(NsService(0))
-app.register()
+if __name__ == '__main__':
+    if any(sys.argv) in ['-v', '--verbose']:
+        verbose = True
 
-adv = NsAdvertisement(0)
-adv.register()
+    app = Application()
+    app.add_service(NsService(0))
+    app.register()
 
-def stop():
-    app.quit()
-    brightness_sensor.stop()
-    volume_sensor.stop()
+    adv = NsAdvertisement(0)
+    adv.register()
 
-try:
-    app.run()
-except KeyboardInterrupt:
-    stop()
-except:
-    stop()
-    raise
+    def stop():
+        app.quit()
+        brightness_sensor.stop()
+        volume_sensor.stop()
+
+    try:
+        app.run()
+    except KeyboardInterrupt:
+        stop()
+    except:
+        stop()
+        raise
