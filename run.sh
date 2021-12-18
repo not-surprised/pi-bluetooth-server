@@ -1,4 +1,7 @@
 #!/bin/bash
 cd "$(dirname "$0")"
-sudo -E sh setup.sh
-/usr/bin/python3 server.py
+sudo sh setup.sh
+sleep 5
+sudo sh setup.sh
+sleep 5
+python3 server.py
