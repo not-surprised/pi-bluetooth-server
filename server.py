@@ -119,7 +119,7 @@ class BrightnessCharacteristic(NsCharacteristic):
         if self.notifying and time() - self.last_notify > 0.2:
             value = self.get()
             num = float(decode(value))
-            if abs(self.previous - num > 0.05 + (0.01 * self.previous)):
+            if abs(self.previous - num) > 0.05 + (0.01 * self.previous):
                 self.PropertiesChanged(GATT_CHRC_IFACE, {'Value': value}, [])
                 self.previous = num
                 self.last_notify = time()
@@ -181,7 +181,7 @@ class VolumeCharacteristic(NsCharacteristic):
         if self.notifying and time() - self.last_notify > 0.2:
             value = self.get()
             num = float(decode(value))
-            if abs(self.previous - num > 0.5):
+            if abs(self.previous - num) > 0.5:
                 self.PropertiesChanged(GATT_CHRC_IFACE, {'Value': value}, [])
                 self.previous = num
                 self.last_notify = time()
