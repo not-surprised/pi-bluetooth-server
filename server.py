@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 
-from datetime import datetime
 from time import time
 
 import dbus
@@ -15,10 +14,12 @@ from sensors.volume_sensor import VolumeSensor
 GATT_CHRC_IFACE = 'org.bluez.GattCharacteristic1'
 NOTIFY_TIMEOUT = 500
 
+
 def encode(string: str) -> 'list[dbus.Byte]':
     encoded = string.encode('utf-8')
     byte_array = [dbus.Byte(b) for b in encoded]
     return byte_array
+
 
 def decode(byte_array: 'list[dbus.Byte]') -> str:
     encoded = bytearray([int(b) for b in byte_array])
@@ -63,22 +64,27 @@ class NsService(Service):
         self.volume_update_paused_until = False
 
         super().__init__(index, self.SVC_UUID, True)
-        self.add_characteristic(BrightnessCharacteristic(self))
-        self.add_characteristic(VolumeCharacteristic(self))
-        self.add_characteristic(PauseVolumeUpdateCharacteristic(self))
-    
+        self.brightness = BrightnessCharacteristic(self)
+        self.volume = VolumeCharacteristic(self)
+        self.pause = PauseVolumeUpdateCharacteristic(self)
+
+        self.add_characteristic(self.brightness)
+        self.add_characteristic(self.volume)
+        self.add_characteristic(self.pause)
+
     def pause_volume_update(self) -> None:
         self.volume_update_paused_until = time() + 5
-    
+
     def resume_volume_update(self) -> None:
         self.volume_update_paused_until = 0
-    
+
     def is_volume_update_paused(self) -> bool:
         return time() < self.volume_update_paused_until
 
 
 class NsCharacteristic(Characteristic):
     service: NsService
+
     def __init__(self, uuid, flags, service: NsService):
         super().__init__(uuid, flags, service)
 
@@ -88,17 +94,20 @@ class BrightnessCharacteristic(NsCharacteristic):
 
     def __init__(self, service):
         self.notifying = False
+        self.previous = 100000000
+        self.last_notify = time()
 
         super().__init__(
                 self.CHARACTERISTIC_UUID,
                 ['notify', 'read'], service)
         self.add_descriptor(TextDescriptor(self, 'Brightness (lux)'))
 
-    def get(self) -> str:
+    @staticmethod
+    def get() -> 'list[dbus.Byte]':
         # get brightness
         try:
             value = brightness_sensor.get()
-            str_value = f'{value:.5g}' # 5 significant figures
+            str_value = f'{value:.5g}'  # 5 significant figures
             print(f'read brightness: {str_value}')
             return encode(f'{str_value}')
         except Exception as e:
@@ -107,9 +116,13 @@ class BrightnessCharacteristic(NsCharacteristic):
             return encode('error')
 
     def notify(self) -> bool:
-        if self.notifying:
+        if self.notifying and time() - self.last_notify > 0.2:
             value = self.get()
-            self.PropertiesChanged(GATT_CHRC_IFACE, {'Value': value}, [])
+            num = float(decode(value))
+            if abs(self.previous - num > 0.05 + (0.01 * self.previous)):
+                self.PropertiesChanged(GATT_CHRC_IFACE, {'Value': value}, [])
+                self.previous = num
+                self.last_notify = time()
 
         return self.notifying
 
@@ -138,17 +151,20 @@ class VolumeCharacteristic(NsCharacteristic):
     def __init__(self, service):
         self.notifying = False
         self.volume_value = self.get_raw()
+        self.previous = 100000000
+        self.last_notify = time()
 
         super().__init__(
                 self.CHARACTERISTIC_UUID,
                 ['notify', 'read'], service)
         self.add_descriptor(TextDescriptor(self, 'Volume (unit?)'))
 
-    def get_raw(self) -> str:
+    @staticmethod
+    def get_raw() -> 'list[dbus.Byte]':
         # get volume
         try:
             value = volume_sensor.get()
-            str_value = f'{value:.5g}' # 5 significant figures
+            str_value = f'{value:.5g}'  # 5 significant figures
             print(f'read volume: {str_value}')
             return encode(f'{str_value}')
         except Exception as e:
@@ -156,15 +172,19 @@ class VolumeCharacteristic(NsCharacteristic):
             print(e)
             return encode('error')
 
-    def get(self) -> str:
+    def get(self) -> 'list[dbus.Byte]':
         if not self.service.is_volume_update_paused():
             self.volume_value = self.get_raw()
         return self.volume_value
 
     def notify(self) -> bool:
-        if self.notifying:
+        if self.notifying and time() - self.last_notify > 0.2:
             value = self.get()
-            self.PropertiesChanged(GATT_CHRC_IFACE, {'Value': value}, [])
+            num = float(decode(value))
+            if abs(self.previous - num > 0.5):
+                self.PropertiesChanged(GATT_CHRC_IFACE, {'Value': value}, [])
+                self.previous = num
+                self.last_notify = time()
 
         return self.notifying
 
@@ -194,18 +214,18 @@ class PauseVolumeUpdateCharacteristic(NsCharacteristic):
         super().__init__(
                 self.CHARACTERISTIC_UUID,
                 ['read', 'write'], service)
-        self.add_descriptor(TextDescriptor(self,
-            'Write 1 to freeze volume output and write 0 to unfreeze. '
-            'Will automatically reset after 5 seconds.'))
+        text = 'Write 1 to freeze volume output and write 0 to unfreeze. '\
+               'Will automatically reset after 5 seconds.'
+        self.add_descriptor(TextDescriptor(self, text))
 
     def WriteValue(self, value, options):
         try:
-            value = decode(value)
+            value = float(decode(value))
             print('received', value)
-            if value == '1':
-                self.service.pause_volume_update()
-            elif value == '0':
-                self.service.resume_volume_update()
+            was_paused = self.service.is_volume_update_paused()
+            self.service.pause_volume_update()
+            if not was_paused:
+                self.service.volume.volume_value = value
         except Exception as e:
             print('error in WriteValue')
             print(e)
