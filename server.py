@@ -220,8 +220,8 @@ class PauseVolumeUpdateCharacteristic(NsCharacteristic):
 
     def WriteValue(self, value, options):
         try:
-            value = float(decode(value))
-            print('received', value)
+            num = float(decode(value))
+            print('received', num)
             was_paused = self.service.is_volume_update_paused()
             self.service.pause_volume_update()
             if not was_paused:
